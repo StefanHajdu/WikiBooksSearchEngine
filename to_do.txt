@@ -1,0 +1,18 @@
+1. opravit extrahovanie infoboxu: vybrat ho z celeho contentu ocisteneho o <ref> tag,
+                                  nie pocas parsovania riadkov
+
+2. doplnit extrahovanie genre o: Prva veta clanku zacina ako '''''~title of novel~''''' is a ? [[~novel genre(s)~]] by ? [[~author of novel~]]
+
+3. doplnit extrahovanie publ. year o: '''''~title of novel~''''' (?~year~?)
+
+4. doplnit extrahovanie num. of page: Infobox - pages = ~number~
+
+5. doplnit extrahovanie PLOT SECTION: V sekcii zacinajucej ==PLOT==/==PLOT SUMMARY==/==SUMMARY== po začiatok novej sekcie ==
+
+6. doplnit indexovanie pre book: type, title, genre, publ_year, num_pages
+
+7. doplnit indexovanie pre writer: type, name, nationality_regex
+
+8. doplnit vyhladavanie book + writer
+
+9. doplnit prepinace pre UI

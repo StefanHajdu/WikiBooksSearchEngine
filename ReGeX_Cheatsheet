@@ -1,0 +1,80 @@
+re.search(<regex>, <string>) -> return value is always the leftmost possible match of <regex>; vrati: ak vyskyt MATCH OBJECT || inak None
+
+[] -> character class: matches any SINGLE character that is in the class
+      - >>> s = 'foo123bar'
+        >>> re.search('[0-9][0-9][abc]', s)
+        <_sre.SRE_Match object; span=(3, 6), match='12b'>
+   -> also a range of characters is allowed by (-)
+   -> Other regex metacharacters (EXPCEPT -, ], [) lose their special meaning inside a character class
+
+. -> matches any SINGLE character except newline ("\n")
+  -> >>> s = 'foo123bar'
+     >>> re.search('1.3', s)
+     <_sre.SRE_Match object; span=(3, 6), match='123'>
+
+^ = \A -> Anchors (zero-width matches) a match at the START of a string
+       -> Complements a character class (If a ^ character appears in a character class but isn’t the first character, then it has no special meaning and matches a literal '^' character)
+          - [^0-9] matches any character that isn’t a digit
+          - >>> re.search('\Afoo', 'foobar')
+            <_sre.SRE_Match object; span=(0, 3), match='foo'>
+
+$ = \Z -> Anchors a match at the END of a string
+          - >>> re.search('bar$', 'foobar')
+            <_sre.SRE_Match object; span=(3, 6), match='bar'>
+
+* -> Matches 0 or more repetitions of PRECEDING character
+     - >>> re.search('foo-*bar', 'foo--bar')
+     <_sre.SRE_Match object; span=(0, 8), match='foo--bar'>
+
++ -> Matches 1 or more repetitions of PRECEDING character
+
+? -> Matches 0 or 1 repetitions of PRECEDING character
+
+*?, +?, ?? -> non greedy versions of preceding ones
+
+<regex>{x} -> Matches an exactly x repetitions of PRECEDING regex
+<regex>{,n} -> Any number of repetitions of <regex> less than or equal to n
+<regex>{m,} -> Any number of repetitions of <regex> greater than or equal to m
+<regex>{,} -> 	Any number of repetitions of <regex>
+{} -> Matches literally "{}"
+{m,n}? -> non greedy version
+          - >>> re.search('a{3,5}', 'aaaaaaaa')
+            <_sre.SRE_Match object; span=(0, 5), match='aaaaa'>
+          - >>> re.search('a{3,5}?', 'aaaaaaaa')
+            <_sre.SRE_Match object; span=(0, 3), match='aaa'>
+
+\ -> Escape metacharacter, if other metacharacter is part of regex
+    - e.g. seperating (-) >>> re.search('[ab\-c]', '123-456')
+                          <_sre.SRE_Match object; span=(3, 4), match='-'>
+
+| -> Desigantes alternation
+
+() -> Creates a group. A group represents a single syntactic entity. Additional metacharacters apply to the ENTIRE group as a unit
+   -> Treating a Group as a Unit
+      - >>> re.search('(bar)+', 'foo barbar baz')
+        <_sre.SRE_Match object; span=(4, 10), match='barbar'>
+      - difference bar+ and (bar)+
+
+
+<> -> Creates a named group
+
+\b -> regex parser’s current position must be at the beginning or end of a word, watch for word boundary
+      - >>> re.search(r'\bbar', 'foo bar')
+        <_sre.SRE_Match object; span=(4, 7), match='bar'>
+      - >>> re.search(r'foo\b', 'foo bar')
+        <_sre.SRE_Match object; span=(0, 3), match='foo'>
+      - >>> re.search(r'\bbar\b', 'foo bar baz')
+        <_sre.SRE_Match object; span=(4, 7), match='bar'>
+\B -> opposite to \b
+      - >>> re.search(r'\Bfoo\B', 'barfoobaz')
+        <_sre.SRE_Match object; span=(3, 6), match='foo'>
+
+\w -> matches any alphanumeric word character. Word characters are uppercase and lowercase letters, digits, and the underscore (_) character,
+   -> equal to [a-zA-Z0-9_]
+\W -> opposite to \w, equal to [^a-zA-Z0-9_]
+
+\d -> matches any decimal digit character, [0-9]
+\D -> opposite to \d, [^0-9]
+
+\s -> matches any whitespace character, "\n" included
+\S -> opposite of \s. It matches any character that isn’t whitespace

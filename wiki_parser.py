@@ -4,7 +4,6 @@ import re
 in_article_flag = False
 first_sentence_captured_flag = False
 
-# Data file
 # open data file and read it line by line
 # "Data/Wiki/enwiki-latest-pages-article_metas27.xml"
 # "problematic.xml"
@@ -31,13 +30,14 @@ class Book:
         self.genre = 'none'
         self.publ_year = 'none'
         self.num_pages = 'none'
-        self.abstract = 'none'
+        self.abstract = []
+        self.histogram = {}
         self.plot = 'none'
 
     def __str__(self):
         return f"Title>\n {self.title}\n \nAuthor>\n {self.author}\n \nGenre>\n {self.genre}\n \
                  \nPubl. year>\n {self.publ_year}\n \nNum. pages>\n {self.num_pages}\n \
-                 \nAbstract>\n {self.abstract}\n \nPlot>\n {self.plot}\n"
+                 \nAbstract>\n {self.abstract}\n \nPlot>\n {self.plot}\n \nHistogram>\n {self.histogram}\n"
 
     def reset(self):
         self.title = 'none'
@@ -45,7 +45,8 @@ class Book:
         self.genre = 'none'
         self.publ_year = 'none'
         self.num_pages = 'none'
-        self.abstract = 'none'
+        self.abstract.clear()
+        self.histogram.clear()
         self.plot = 'none'
 
 class Writer:
@@ -140,7 +141,48 @@ def extract_year(str):
     else:
         return 'none'
 
-def extract_book_doc(article_meta):
+stopwords_set = set()
+stopwords_file = open("stop_words.txt", "r")
+for line in stopwords_file:
+    stopwords_set.add(line)
+
+def delete_stopwords(content_wordlist):
+    # iterate list from end so you can delete elements
+    for word in reversed(content_wordlist):
+        if (word+'\n').lower() in stopwords_set:
+            content_wordlist.remove(word)
+    return content_wordlist
+
+def clear_content(content_str):
+    # clear html tags especialy <ref></ref> tag content
+    clean_ref_regex = re.compile('<.*?>.*?<.*?>')
+    content_str = re.sub(clean_ref_regex, '', content_str)
+    # clear {{}} parts
+    clean_ref_regex = re.compile('\{\{.*?\}\}')
+    content_str = re.sub(clean_ref_regex, '', content_str)
+    # clear balast characters
+    content_str = content_str.replace('|', " ")
+    useless_chars = ['[', ']', '#', ',', '(', ')', ';', '.', ':', '"', "''"]
+    for balast in useless_chars:
+        content_str = content_str.replace(balast, "")
+
+    content_wordlist = content_str.split()
+    # clear stop words
+    content_wordlist = delete_stopwords(content_wordlist)
+
+    return content_wordlist
+
+def count_freq(abstract_list):
+    freq_histogram = {}
+    for item in abstract_list:
+        if (item.lower() in freq_histogram):
+            freq_histogram[item.lower()] += 1
+        else:
+            freq_histogram[item.lower()] = 1
+
+    return freq_histogram
+
+def extract_book_doc(article_meta, article_content):
     noise_chars = ['(',')']
     book_doc = Book()
     # extract Title
@@ -165,6 +207,13 @@ def extract_book_doc(article_meta):
         publ_year = extract_item_from_infobox(article_meta.infobox, variation)
         if publ_year:
             book_doc.publ_year = extract_year(publ_year)
+
+    # extract abstract
+    article_abstract_regex = re.search("('''''.*?''''')(.*?)(==)", article_content)
+    if article_abstract_regex:
+        abstract_list = clear_content(article_abstract_regex.group(2))
+        book_doc.abstract = abstract_list
+        book_doc.histogram = count_freq(abstract_list)
 
     return book_doc
 
@@ -197,6 +246,30 @@ def extract_writer_doc(article_meta):
         writer_doc.nationality = nationality
 
     return writer_doc
+
+def write_book_doc(book_doc):
+    file_name = "to_index/" + book_doc.title + ".txt"
+    f = open(file_name, "w")
+    f.write(f"book\n")
+    f.write(f"title {book_doc.title}\n")
+    f.write(f"author {book_doc.author}\n")
+    f.write(f"genre {book_doc.genre}\n")
+    f.write(f"publ_year {book_doc.publ_year}\n")
+    f.write(f"num_pages {book_doc.num_pages}\n")
+    f.write(f"abstract ")
+    for item in book_doc.abstract:
+        f.write(f"{item} ")
+    f.write(f"\nhistogram: {book_doc.histogram}\n")
+    f.write(f"plot:{book_doc.plot}\n")
+    f.close()
+
+def write_writer_doc(writer_doc):
+    file_name = "to_index/" + writer_doc.title + ".txt"
+    f = open(file_name, "w")
+    f.write(f"writer\n")
+    f.write(f"name {writer_doc.title}\n")
+    f.write(f"nationality {writer_doc.nationality}\n")
+    f.close()
 
 article_meta = ArticleMetaData()
 article_content = ''
@@ -249,21 +322,24 @@ for line in xml_data:
             first_sentence_captured_flag = False
             if is_article_book(article_meta):
                 # Extract: Title, Author, Genre, Publ. year, Num. of pages from article metadata
-                book_doc = extract_book_doc(article_meta)
+                book_doc = extract_book_doc(article_meta, article_content)
 
-                print(book_doc)
-                #print(article_meta)
-                print("\n----------------------------------------------------\n")
+                # print(book_doc)
+                # #print(article_meta)
+                # print("\n----------------------------------------------------\n")
+
+                # write book_doc items to .txt file with name b1.txt, ...
+                write_book_doc(book_doc)
 
             elif is_article_writer(article_meta):
                 writer_doc = extract_writer_doc(article_meta)
 
-                print(writer_doc)
-                print(article_meta)
-                print("\n----------------------------------------------------\n")
+                # print(writer_doc)
+                # # print(article_meta)
+                # print("\n----------------------------------------------------\n")
+
+                # write writer_doc items to .txt file with name a1.txt, ...
+                # write_writer_doc(writer_doc)
 
             article_meta.reset()
-            print("\n***************************************************\n")
-            print(article_content)
-            print("\n***************************************************\n")
             article_content = ''
