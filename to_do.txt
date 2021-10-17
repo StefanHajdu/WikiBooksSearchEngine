@@ -1,5 +1,5 @@
 1. opravit extrahovanie infoboxu: vybrat ho z celeho contentu ocisteneho o <ref> tag,
-                                  nie pocas parsovania riadkov
+                                  nie pocas parsovania riadkov, skontrolovat ako printuje content pred zapisom 									  do suboru
 
 2. doplnit extrahovanie genre o: Prva veta clanku zacina ako '''''~title of novel~''''' is a ? [[~novel genre(s)~]] by ? [[~author of novel~]]
 
