@@ -5,7 +5,7 @@ in_article_flag = False
 first_sentence_captured_flag = False
 
 # open data file and read it line by line
-# "Data/Wiki/enwiki-latest-pages-article_metas27.xml"
+# xml_data_name = "Data/Wiki/enwiki-latest-pages-articles27.xml"
 # "problematic.xml"
 xml_data_name = "Data/wikiData.xml"
 
@@ -248,7 +248,7 @@ def extract_writer_doc(article_meta):
     return writer_doc
 
 def write_book_doc(book_doc):
-    file_name = "to_index/" + book_doc.title + ".txt"
+    file_name = "to_index/" + book_doc.title.replace('/', '') + ".txt"
     f = open(file_name, "w")
     f.write(f"book\n")
     f.write(f"title {book_doc.title}\n")
@@ -264,7 +264,7 @@ def write_book_doc(book_doc):
     f.close()
 
 def write_writer_doc(writer_doc):
-    file_name = "to_index/" + writer_doc.title + ".txt"
+    file_name = "to_index/" + writer_doc.title.replace('/', '') + ".txt"
     f = open(file_name, "w")
     f.write(f"writer\n")
     f.write(f"name {writer_doc.title}\n")

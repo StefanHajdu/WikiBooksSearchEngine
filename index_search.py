@@ -19,8 +19,8 @@ from org.apache.lucene.search import IndexSearcher
 from org.apache.lucene.index import DirectoryReader
 from org.apache.lucene.queryparser.classic import QueryParser
 
-DATA_DIR = "/home/stephenx/Dokumenty/python/Wiki_books_search/to_index/"
-INDEX_DIR = "/home/stephenx/Dokumenty/python/Wiki_books_search/index/"
+DATA_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/to_index/"
+INDEX_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/index/"
 
 def extract_from_file(field, file_name):
     file = open(file_name)
