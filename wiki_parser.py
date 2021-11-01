@@ -9,6 +9,7 @@ first_sentence_captured_flag = False
 # "problematic.xml"
 xml_data_name = "Data/wikiData.xml"
 
+# class defiens article meta data, used for article classification
 class ArticleMetaData:
     def __init__(self):
         self.title = 'none'
@@ -23,6 +24,7 @@ class ArticleMetaData:
         self.infobox = 'none'
         self.first_sentence = 'none'
 
+# class defines extracted information about book that will be indexed
 class Book:
     def __init__(self):
         self.title = 'none'
@@ -49,6 +51,7 @@ class Book:
         self.histogram.clear()
         self.plot = 'none'
 
+# class defines extracted information about writer that will be indexed
 class Writer:
     def __init__(self):
         self.title = 'none'
@@ -61,21 +64,23 @@ class Writer:
         elf.title = 'none'
         self.nationality = 'none'
 
-
+# Function decides if article is about writer
 def is_article_writer(article_meta):
     accepted_writers = ["writer",
                         "poet",
                         "novelist"]
+
+    # if Infobox starts with "{{Infobox writer..."
     if not(article_meta.infobox == "none") and re.search("\s*\{\{Infobox writer", article_meta.infobox):
         return True
     elif not(article_meta.first_sentence == "none"):
         for writer in accepted_writers:
-            # sentence structure for writers is: was|is an|a [country name] [writer, novelist, poet]
+            # if sentence structure is: was|is an|a [country name] [writer, novelist, poet]
             is_writer_regex = f"((was (a|an) )|(is (a|an)) )(.*?)({writer})"
             if re.search(is_writer_regex, article_meta.first_sentence):
                 return True
 
-
+# Function checks if word is in genre gazeteer
 def is_in_genreGazeteer(genre):
     with open('Genre_Gazeteer.txt') as f:
         if genre in f.read():
@@ -83,14 +88,17 @@ def is_in_genreGazeteer(genre):
         else:
             return False
 
+# Function decides if article is about book
 def is_article_book(article_meta):
+    # if Infobox starts with "{{Infobox book..."
     if not(article_meta.infobox == "none") and re.search("\s*\{\{Infobox book", article_meta.infobox):
         return True
+
+    # regex> if 1st sentence starts with article main heading '''''...'''''
+    #        after that there is 0-1 information in ()
+    #        after that threse is "is a"
+    #        after that there is genre with max lenght of 3 words in optional [[genre]]
     elif re.search("('{3,5}.*?'{3,5})( \(.*\))? (is a) ((\[\[)?(.*? ){1,3}(\]\])?by)", article_meta.first_sentence):
-        # regex> if 1st sentence starts with article main heading '''''...'''''
-        #        after that there is 0-1 information in ()
-        #        after that threse is "is a"
-        #        after that there is genre with max lenght of 3 words in optional [[genre]]
         book_genre_regex = re.search("('{3,5}.*?'{3,5})( \(.*\))? (is a) ((\[\[)?(.*? ){1,3}(\]\])?by)", article_meta.first_sentence)
         # book genre is in form: "genre by" and it is 4th group
         book_genre = book_genre_regex.group(4)
@@ -105,12 +113,16 @@ def is_article_book(article_meta):
     else:
         return False
 
+# Function to extract infobox content of item
 def extract_item_from_infobox(infobox, infobox_item):
     # f"" not working for some reason
+    # locate item
     regex = "(" + infobox_item + ")( = )(.*?((\|)|(\})))"
     item_regex = re.search(regex, infobox)
     if item_regex:
+        # extract content
         item_text = item_regex.group(3)[:-1]
+        # in most cases author item starts with [[]] 'cuz is it link
         if infobox_item == "author":
             if item_text.startswith("[["):
                 return item_text[2:-3]
@@ -118,13 +130,18 @@ def extract_item_from_infobox(infobox, infobox_item):
                 return item_text
         return item_text
 
+    # if there is no such item return nothing
     return ''
 
+# function to extract author from article meta data
 def extract_author(article_meta):
+    # search in infobox
     if not(article_meta.infobox == "none"):
         author = extract_item_from_infobox(article_meta.infobox, "author")
         return author
+    # search in first sentence
     elif not(article_meta.first_sentence == "none"):
+        # book is wrtten "by [[writer]]"
         book_author = re.search("(by) (.*\[\[)(.*\]\])", article_meta.first_sentence)
         if book_author:
             author = book_author.group(3)[:-2]
@@ -134,6 +151,7 @@ def extract_author(article_meta):
     else:
         return ''
 
+# extract year(4 consecutive) from sring
 def extract_year(str):
     year_regex = re.search('(\d{4})', str)
     if year_regex:
@@ -141,18 +159,21 @@ def extract_year(str):
     else:
         return 'none'
 
+# create stop words set for fast search in advance
 stopwords_set = set()
 stopwords_file = open("stop_words.txt", "r")
 for line in stopwords_file:
     stopwords_set.add(line)
 
+# delete stop words from article section in form of list
 def delete_stopwords(content_wordlist):
-    # iterate list from end so you can delete elements
+    # iterate list from begin to end to delete stop words elements
     for word in reversed(content_wordlist):
         if (word+'\n').lower() in stopwords_set:
             content_wordlist.remove(word)
     return content_wordlist
 
+# clear article content of all unnecessary "balast"
 def clear_content(content_str):
     # clear html tags especialy <ref></ref> tag content
     clean_ref_regex = re.compile('<.*?>.*?<.*?>')
@@ -166,12 +187,14 @@ def clear_content(content_str):
     for balast in useless_chars:
         content_str = content_str.replace(balast, "")
 
+    # split content string by white chars to create content list
     content_wordlist = content_str.split()
     # clear stop words
     content_wordlist = delete_stopwords(content_wordlist)
 
     return content_wordlist
 
+# Function to count word freq in abstract, or anyother list
 def count_freq(abstract_list):
     freq_histogram = {}
     for item in abstract_list:
@@ -182,6 +205,7 @@ def count_freq(abstract_list):
 
     return freq_histogram
 
+# extact all information about book from article metadata and article content
 def extract_book_doc(article_meta, article_content):
     noise_chars = ['(',')']
     book_doc = Book()
@@ -217,15 +241,18 @@ def extract_book_doc(article_meta, article_content):
 
     return book_doc
 
+# extract nationality of book writer
 def extract_nationality(first_sentence):
     if not(article_meta.first_sentence == "none"):
-        # regex not working for RoaBastos
+        # regex not working for RoaBastos <page>
+        # search in first sentence before name should be nationality
         nationality_regex = re.search("((was (a|an) )|(is (a|an) ))(.*? )", article_meta.first_sentence)
         if nationality_regex:
             nationality = nationality_regex.group(6)[:-1]
             return nationality
         else:
             return ''
+    # or search in infobox in item birth_place which is not necessary nationality but it will do :D
     elif not(article_meta.infobox == "none"):
         nationality = extract_item_from_infobox(article_meta.infobox, "birth_place")
         if nationality:
@@ -234,6 +261,7 @@ def extract_nationality(first_sentence):
     else:
         return ''
 
+# extact all information about writer from article metadata and article content
 def extract_writer_doc(article_meta):
     writer_doc = Writer()
     # extract Title
@@ -247,6 +275,7 @@ def extract_writer_doc(article_meta):
 
     return writer_doc
 
+# write all extracted information to separate .txt file
 def write_book_doc(book_doc):
     file_name = "to_index/" + book_doc.title.replace('/', '') + ".txt"
     f = open(file_name, "w")
@@ -263,6 +292,7 @@ def write_book_doc(book_doc):
     f.write(f"plot:{book_doc.plot}\n")
     f.close()
 
+# write all extracted information to separate .txt file
 def write_writer_doc(writer_doc):
     file_name = "to_index/" + writer_doc.title.replace('/', '') + ".txt"
     f = open(file_name, "w")
@@ -275,8 +305,10 @@ article_meta = ArticleMetaData()
 article_content = ''
 xml_data = open(xml_data_name, "r")
 for line in xml_data:
+    # delete newline
     line = line.replace('\n', '')
     article_content += line
+    # find start of new article
     if not in_article_flag and re.search("\s*\<page\>", line):
         in_article_flag = True
         continue
@@ -289,7 +321,7 @@ for line in xml_data:
             continue
 
         # find infobox of article_meta
-        # find otherway to collect infobox
+        # NOT good, extract infobox after all content is read
         elif re.search("\s*\{\{Infobox", line):
             while not "}}" in line:
                 next_line = xml_data.readline().replace('\n', '')

@@ -22,13 +22,17 @@ from org.apache.lucene.queryparser.classic import QueryParser
 DATA_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/to_index/"
 INDEX_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/index/"
 
+# we are working with separate .txt file for every indexed document
+# function extracts field from given .txt
 def extract_from_file(field, file_name):
     file = open(file_name)
+    # each line is separate field
     for line in file:
         if line.startswith(field):
             return line[:-1]
     file.close()
 
+# function to create document for Lucene index
 def create_document(file_name):
     # Define properties macros for Fields
     # explained here: https://lucene.apache.org/core/7_7_0/core/org/apache/lucene/document/FieldType.html
@@ -37,6 +41,7 @@ def create_document(file_name):
     field_type_1.setTokenized(False) # Set to true to tokenize this field's contents via the configured
     field_type_1.setIndexOptions(IndexOptions.DOCS_AND_FREQS) # to control how much information is stored in the postings lists
 
+    # using field_type_2 to search tokenized key words
     field_type_2 = FieldType()
     field_type_2.setStored(True)
     field_type_2.setStoreTermVectors(True)
@@ -45,6 +50,7 @@ def create_document(file_name):
 
     path = DATA_DIR + file_name
     file = open(path)
+    # read 1st line to determine if file is about book or writer
     type = file.readline()
     file.close()
     doc = Document()
@@ -97,7 +103,7 @@ lucene.initVM(vmargs=['-Djava.awt.headless=true'])
 
 # Create a new directory. As a SimpleFSDirectory
 directory = SimpleFSDirectory(Paths.get(INDEX_DIR))
-# create StandardAnalyzer
+# create StandardAnalyzer, it is used but content is already tokenized and cleared of stopwords
 analyzer = StandardAnalyzer()
 # This Analyzer limits the number of tokens while indexing. It is a replacement for the maximum field length setting inside IndexWriter.
 analyzer = LimitTokenCountAnalyzer(analyzer, 1048576)
@@ -109,7 +115,7 @@ writer = IndexWriter(directory, config)
 
 print ("Number of indexed documents: %d\n" % writer.numDocs())
 
-# Iterate over file in data directory
+# Iterate over file in data directory and add them to index
 for f in listdir(DATA_DIR):
     print("Current file:", f)
     # create documents
@@ -124,10 +130,12 @@ writer.close()
 # SEARCHING PART
 #
 
+# term score class contains all metrics to evaluate document
 class TermScore:
     def __init__(self, term_name):
         self.name = term_name
-        self.freq_in_term = 0
+        # for now only single occurence in query is allowed
+        self.freq_in_term = 1
         self.freq_in_collection = 0
         self.idf = 0
         self.weight_in_term = 0
@@ -136,12 +144,16 @@ class TermScore:
         self.cosine_weight = 0
         self.score = 0
 
+# find term frequency in given document, basicaly seach histogram in .txt twin of document
 def find_freq_in_doc(hist, term):
     regex = "('" + term + "':) ([\d*])"
     value_regex = re.search(regex, hist)
-    value = value_regex.group(2)
-    return int(value)
+    if value_regex:
+        return int(value_regex.group(2))
+    else:
+        return 0
 
+# evaluate found document based on: Lecture Indexing, page: 51
 def evalute_doc(command, df_hist, N, doc_file):
     terms = command.split()
     doc_score = 0
@@ -149,29 +161,27 @@ def evalute_doc(command, df_hist, N, doc_file):
     for term in terms:
         curr_term = TermScore(term.lower())
         # print(curr_term.name)
-        # for now only single occurs is allowed
-        curr_term.freq_in_term = 1
         curr_term.freq_in_collection = df_hist[curr_term.name]
         curr_term.idf = abs(math.log10(N/curr_term.freq_in_collection))
         # print(curr_term.freq_in_term)
         # print(curr_term.freq_in_collection)
         # print(curr_term.idf)
         curr_term.weight_in_term = curr_term.freq_in_term * curr_term.idf
-        f = open(DATA_DIR+doc_file, "r")
         doc_hist = extract_from_file("histogram:", DATA_DIR+doc_file)[9:]
-        f.close()
         curr_term.freq_in_document = find_freq_in_doc(doc_hist, curr_term.name)
         # print(curr_term.freq_in_document)
         curr_term.wf = 1+math.log10(curr_term.freq_in_document) if curr_term.freq_in_document > 0 else 0
         # print(curr_term.wf)
         term_score_list.append(curr_term)
 
+    # calculate divivider in cosine distance fraction
     wf_cosine_divider = 0
     for term_score in term_score_list:
         wf_cosine_divider += pow(term_score.wf, 2)
 
     wf_cosine_divider = math.sqrt(wf_cosine_divider)
 
+    # calculate for each its cosine weight and use it in final sum for whole document
     for term_score in term_score_list:
         term_score.cosine_weight = term_score.wf / wf_cosine_divider
         term_score.score = term_score.cosine_weight * term_score.weight_in_term
@@ -179,6 +189,7 @@ def evalute_doc(command, df_hist, N, doc_file):
 
     return doc_score
 
+# count document frequency histogram for every term
 def count_df_histogram(DATA_DIR):
     df_histogram = {}
     # Iterate over file in data directory
@@ -192,6 +203,7 @@ def count_df_histogram(DATA_DIR):
                 df_histogram[item.lower()] = 1
     return df_histogram
 
+# functio that provides search over created index
 def run_search(searcher, analyzer, ireader, df_hist):
     while True:
         print ("Hit enter with no input to quit.")
@@ -201,7 +213,7 @@ def run_search(searcher, analyzer, ireader, df_hist):
             return
         print ("Searching for:", command)
         query = QueryParser("abstract", analyzer).parse(command)
-        # Searching returns hits in the form of a TopDocs object
+        # Searching returns hits in the form of a TopDocs object, it is list of documents
         scoreDocs = searcher.search(query, 10).scoreDocs    # 10 means : 10 best results
         print ("%s total matching documents." % len(scoreDocs))
 
@@ -224,6 +236,7 @@ analyzer = StandardAnalyzer()
 
 ireader = DirectoryReader.open(directory)
 
+# calculate histogram over all file that will be indexed, to get doc freq used in document evaluation metrics
 df_hist = count_df_histogram(DATA_DIR)
 
 # ... and start searching!
