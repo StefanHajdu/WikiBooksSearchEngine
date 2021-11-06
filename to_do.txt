@@ -1,11 +1,11 @@
-1. opravit extrahovanie infoboxu: vybrat ho z celeho contentu ocisteneho o <ref> tag,
-                                  nie pocas parsovania riadkov, skontrolovat ako printuje content pred zapisom 									  do suboru
+DONE - 1. opravit extrahovanie infoboxu: vybrat ho z celeho contentu ocisteneho o <ref> tag,
+                                  nie pocas parsovania riadkov
 
-2. doplnit extrahovanie genre o: Prva veta clanku zacina ako '''''~title of novel~''''' is a ? [[~novel genre(s)~]] by ? [[~author of novel~]]
+DONE - 2. doplnit extrahovanie genre o: Prva veta clanku zacina ako '''''~title of novel~''''' is a ? [[~novel genre(s)~]] by ? [[~author of novel~]]
 
-3. doplnit extrahovanie publ. year o: '''''~title of novel~''''' (?~year~?)
+DONE - 3. doplnit extrahovanie publ. year o: '''''~title of novel~''''' (?~year~?)
 
-4. doplnit extrahovanie num. of page: Infobox - pages = ~number~
+DONE - 4. doplnit extrahovanie num. of page: Infobox - pages = ~number~
 
 5. doplnit extrahovanie PLOT SECTION: V sekcii zacinajucej ==PLOT==/==PLOT SUMMARY==/==SUMMARY== po začiatok novej sekcie ==
 
