@@ -65,12 +65,14 @@ def is_article_writer(article_meta):
                         "novelist"]
     if not(article_meta.infobox == "none") and re.search("\s*\{\{Infobox writer", article_meta.infobox):
         return True
-    elif not(article_meta.first_sentence == "none"):
+    if not(article_meta.first_sentence == "none"):
         for writer in accepted_writers:
             # sentence structure for writers is: was|is an|a [country name] [writer, novelist, poet]
-            is_writer_regex = f"((was (a|an) )|(is (a|an)) )(.*?)({writer})"
+            is_writer_regex = f"((was (a|an) )|(is (a|an)) )(.*?)( {writer})"
             if re.search(is_writer_regex, article_meta.first_sentence):
                 return True
+
+    return False
 
 
 def is_in_genreGazeteer(genre):
@@ -247,34 +249,6 @@ def extract_book_doc(article_meta, article_content):
 
     return book_doc
 
-def extract_nationality(article_meta):
-    # check writers nationality in Infobox
-    if not(article_meta.infobox == "none"):
-        nationality = extract_item_from_infobox(article_meta.infobox, "birth_place")
-        if nationality:
-            return nationality
-    # check writers nationality in 1st sentence
-    if not(article_meta.first_sentence == "none"):
-        nationality_regex = re.search("((was (a|an) )|(is (a|an) ))(.*? )", article_meta.first_sentence)
-        if nationality_regex:
-            nationality = nationality_regex.group(6)[:-1]
-            return nationality
-
-    return ''
-
-def extract_writer_doc(article_meta):
-    writer_doc = Writer()
-    # extract Title
-    xml_text = re.search(">(.*?)<", article_meta.title)
-    writer_doc.title = xml_text.group(1)
-
-    # extract Nationality
-    nationality = extract_nationality(article_meta)
-    if nationality:
-        writer_doc.nationality = nationality
-
-    return writer_doc
-
 def extract_infobox(article_content):
     infobox_regex = re.search("(\s*)(\{\{Infobox.*?)('{3,5})", article_content)
     if infobox_regex:
@@ -310,6 +284,34 @@ def write_writer_doc(writer_doc):
     f.write(f"name {writer_doc.title}\n")
     f.write(f"nationality {writer_doc.nationality}\n")
     f.close()
+
+def extract_nationality(article_meta):
+    # check writers nationality in Infobox
+    if not(article_meta.infobox == "none"):
+        nationality = extract_item_from_infobox(article_meta.infobox, "birth_place")
+        if nationality:
+            return nationality
+    # check writers nationality in 1st sentence
+    if not(article_meta.first_sentence == "none"):
+        nationality_regex = re.search("((was (a|an) )|(is (a|an) ))(.*? )", article_meta.first_sentence)
+        if nationality_regex:
+            nationality = nationality_regex.group(6)[:-1]
+            return nationality
+
+    return ''
+
+def extract_writer_doc(article_meta):
+    writer_doc = Writer()
+    # extract Title
+    xml_text = re.search(">(.*?)<", article_meta.title)
+    writer_doc.title = xml_text.group(1)
+
+    # extract Nationality
+    nationality = extract_nationality(article_meta)
+    if nationality:
+        writer_doc.nationality = nationality
+
+    return writer_doc
 
 # FLAGS
 in_article_flag = False
@@ -368,32 +370,17 @@ for line in xml_data:
             article_meta.infobox = extract_infobox(article_content)
 
             if is_article_book(article_meta):
-                # print(article_meta.title)
-                # print("I:\n")
-                # print(f'\n{article_meta.infobox}\n')
-                # print("S:\n")
-                # print(f'\n{article_meta.first_sentence}\n')
-                # print("\n-----------------------------------------\n")
-
                 # Extract: Title, Author, Genre, Publ. year, Num. of pages from article metadata
                 book_doc = extract_book_doc(article_meta, article_content)
-
-                # print(book_doc)
-                # #print(article_meta)
-                # print("\n----------------------------------------------------\n")
 
                 # write book_doc items to .txt file with name b1.txt, ...
                 write_book_doc(book_doc)
 
-            # elif is_article_writer(article_meta):
-            #     writer_doc = extract_writer_doc(article_meta)
-            #
-            #     # print(writer_doc)
-            #     # # print(article_meta)
-            #     # print("\n----------------------------------------------------\n")
-            #
-            #     # write writer_doc items to .txt file with name a1.txt, ...
-            #     write_writer_doc(writer_doc)
+            elif is_article_writer(article_meta):
+                writer_doc = extract_writer_doc(article_meta)
+
+                # write writer_doc items to .txt file with name a1.txt, ...
+                write_writer_doc(writer_doc)
 
             article_meta.reset()
             article_content = ''
