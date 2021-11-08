@@ -1,9 +1,10 @@
 import re
+import os, glob
 
 # open data file and read it line by line
 # xml_data_name = "Data/Wiki/enwiki-latest-pages-articles27.xml"
 # "problematic.xml"
-# xml_data_name = "/home/stephenx/Dokumenty/python/Wiki_books_search/Data/wikiData.xml"
+#xml_data_name = "/home/stephenx/Dokumenty/python/Wiki_books_search/Data/wikiData.xml"
 xml_data_name = "/home/stephenx/Dokumenty/python/Wiki_books_search/Data/Wiki/enwiki-latest-pages-articles27.xml"
 
 class ArticleMetaData:
@@ -150,13 +151,13 @@ def extract_item_from_infobox(infobox, infobox_item):
     item_regex = re.search(regex, infobox)
     if item_regex:
         item_text = item_regex.group(3)[:-1]
-        if infobox_item == "author":
+        if infobox_item == "author" or infobox_item == "editor":
             item_text = item_text.replace("[[", "")
             item_text = item_text.replace("]]", "")
             return item_text
         return item_text
 
-    return ''
+    return 'none'
 
 def extract_author(article_meta):
     if not(article_meta.infobox == "none"):
@@ -181,7 +182,7 @@ def extract_author(article_meta):
         if book_author:
             author = book_author.group(1)
             return author
-    return ''
+    return 'none'
 
 def extract_year(article_meta):
     publ_year_variations = ["release_date", "published", "pub_date"]
@@ -193,7 +194,7 @@ def extract_year(article_meta):
             if year_regex:
                 return year_regex.group(1)
     if publ_year == 'none':
-        year_regex = re.search('(\d{4})', article_meta.first_sentence)
+        year_regex = re.search('(\d{4}?)', article_meta.first_sentence)
         if year_regex:
             return year_regex.group(1)
         else:
@@ -250,12 +251,12 @@ def extract_book_doc(article_meta, article_content):
     return book_doc
 
 def extract_infobox(article_content):
-    infobox_regex = re.search("(\s*)(\{\{Infobox.*?)('{3,5})", article_content)
+    infobox_regex = re.search("(\s*)(\{\{Infobox.*?)(\}\} *'{3,5})", article_content)
     if infobox_regex:
         # clear html tags especialy <ref></ref> tag content
         clean_ref_regex = re.compile('<.*?>.*?<.*?>')
         infobox_str = re.sub(clean_ref_regex, '', infobox_regex.group(2))
-        return infobox_str
+        return infobox_str + " }"
     else:
         return 'none'
 
@@ -285,20 +286,28 @@ def write_writer_doc(writer_doc):
     f.write(f"nationality {writer_doc.nationality}\n")
     f.close()
 
+def clean_nationality(nationality):
+    country = nationality.split(',')[-1]
+    country.strip()
+    useless_chars = ['[', ']', '#', ',', '(', ')', ';', '.', ':', '"', "''"]
+    for balast in useless_chars:
+        country = country.replace(balast, "")
+    return country
+
 def extract_nationality(article_meta):
     # check writers nationality in Infobox
     if not(article_meta.infobox == "none"):
         nationality = extract_item_from_infobox(article_meta.infobox, "birth_place")
         if nationality:
-            return nationality
+            return clean_nationality(nationality)
     # check writers nationality in 1st sentence
     if not(article_meta.first_sentence == "none"):
         nationality_regex = re.search("((was (a|an) )|(is (a|an) ))(.*? )", article_meta.first_sentence)
         if nationality_regex:
             nationality = nationality_regex.group(6)[:-1]
-            return nationality
+            return clean_nationality(nationality)
 
-    return ''
+    return 'none'
 
 def extract_writer_doc(article_meta):
     writer_doc = Writer()
@@ -313,10 +322,17 @@ def extract_writer_doc(article_meta):
 
     return writer_doc
 
+def clear_folder(path):
+    files = glob.glob(path+'*.txt')
+    for f in files:
+        os.remove(f)
+
 # FLAGS
 in_article_flag = False
 first_sentence_captured_flag = False
 
+clear_folder("/home/stephenx/Dokumenty/python/Wiki_books_search/to_index_books")
+clear_folder("/home/stephenx/Dokumenty/python/Wiki_books_search/to_index_writers")
 article_meta = ArticleMetaData()
 article_content = ''
 xml_data = open(xml_data_name, "r")
@@ -333,19 +349,6 @@ for line in xml_data:
             #print(f"{line[:-1].strip()}\n")
             article_meta.title = line[:-1]
             continue
-
-        # # find infobox of article_meta
-        # # find otherway to collect infobox
-        # elif re.search("\s*\{\{Infobox", line):
-        #     while not "}}" in line:
-        #         next_line = xml_data.readline().replace('\n', '')
-        #         article_content += next_line
-        #         line += next_line
-        #
-        #     infobox_regex = re.search("\s*\{\{Infobox.*?\}\} '", line)
-        #     if infobox_regex:
-        #         article_meta.infobox = infobox_regex.group(0).strip()
-        #         #print(f"{infobox_regex.group(0).strip()}\n")
 
         # find 1st sentence of article_meta
         elif not first_sentence_captured_flag and re.search("'{3,5}.*?'{3,5}", line):
@@ -367,7 +370,7 @@ for line in xml_data:
             in_article_flag = False
             first_sentence_captured_flag = False
 
-            article_meta.infobox = extract_infobox(article_content)
+            article_meta.infobox = extract_infobox(article_content.replace("<br>", ''))
 
             if is_article_book(article_meta):
                 # Extract: Title, Author, Genre, Publ. year, Num. of pages from article metadata

@@ -19,8 +19,8 @@ from org.apache.lucene.search import IndexSearcher
 from org.apache.lucene.index import DirectoryReader
 from org.apache.lucene.queryparser.classic import QueryParser
 
-DATA_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/to_index/"
-INDEX_DIR = "/home/stephenx/Dokumenty/VINF/Projekt/index/"
+DATA_DIR = "/home/stephenx/Dokumenty/python/Wiki_books_search/to_index/"
+INDEX_DIR = "/home/stephenx/Dokumenty/python/Wiki_books_search/index/"
 
 # we are working with separate .txt file for every indexed document
 # function extracts field from given .txt
@@ -44,9 +44,8 @@ def create_document(file_name):
     # using field_type_2 to search tokenized key words
     field_type_2 = FieldType()
     field_type_2.setStored(True)
-    field_type_2.setStoreTermVectors(True)
     field_type_2.setTokenized(True)
-    field_type_2.setIndexOptions(IndexOptions.DOCS_AND_FREQS)
+    field_type_2.setIndexOptions(IndexOptions.DOCS)
 
     path = DATA_DIR + file_name
     file = open(path)
@@ -55,17 +54,25 @@ def create_document(file_name):
     file.close()
     doc = Document()
     # add the title field
-    doc.add(Field("file_name", file_name, field_type_1))
+    doc.add(Field("file_name", file_name, field_type_2))
     # add contents
     #doc.add(Field("random_bs", "title Hijo de hombre", field_type_2))
 
     if type[:-1] == 'book':
+        # add author to index
+        field_val = extract_from_file("title", path)
+        doc.add(Field("title", field_val, field_type_2))
         # add author to index
         field_val = extract_from_file("author", path)
         doc.add(Field("author", field_val, field_type_2))
         # add abstract to index
         field_val = extract_from_file("abstract", path)
         doc.add(Field("abstract", field_val, field_type_2))
+    #
+    if type[:-1] == 'writer':
+        # add author to index
+        field_val = extract_from_file("name", path)
+        doc.add(Field("writers_name", field_val, field_type_2))
 
     return doc
 
@@ -160,18 +167,19 @@ def evalute_doc(command, df_hist, N, doc_file):
     term_score_list = []
     for term in terms:
         curr_term = TermScore(term.lower())
-        # print(curr_term.name)
+        # print("term %s" %curr_term.name)
         curr_term.freq_in_collection = df_hist[curr_term.name]
         curr_term.idf = abs(math.log10(N/curr_term.freq_in_collection))
-        # print(curr_term.freq_in_term)
-        # print(curr_term.freq_in_collection)
-        # print(curr_term.idf)
+        # print("tf %d" %curr_term.freq_in_term)
+        # print("df %d" %curr_term.freq_in_collection)
+        # print("idf %f" %curr_term.idf)
         curr_term.weight_in_term = curr_term.freq_in_term * curr_term.idf
+        # print("weight_in_term %f" %curr_term.weight_in_term)
         doc_hist = extract_from_file("histogram:", DATA_DIR+doc_file)[9:]
         curr_term.freq_in_document = find_freq_in_doc(doc_hist, curr_term.name)
-        # print(curr_term.freq_in_document)
+        # print("tf doc %d" %curr_term.freq_in_document)
         curr_term.wf = 1+math.log10(curr_term.freq_in_document) if curr_term.freq_in_document > 0 else 0
-        # print(curr_term.wf)
+        # print("wf %f" %curr_term.wf)
         term_score_list.append(curr_term)
 
     # calculate divivider in cosine distance fraction
@@ -179,21 +187,41 @@ def evalute_doc(command, df_hist, N, doc_file):
     for term_score in term_score_list:
         wf_cosine_divider += pow(term_score.wf, 2)
 
+    # print("cosine divivider %f" %wf_cosine_divider)
+
     wf_cosine_divider = math.sqrt(wf_cosine_divider)
+    if wf_cosine_divider == 0:
+        wf_cosine_divider = 1
+
+    # print("cosine divivider SQUARED %f" %wf_cosine_divider)
 
     # calculate for each its cosine weight and use it in final sum for whole document
     for term_score in term_score_list:
-        term_score.cosine_weight = term_score.wf / wf_cosine_divider
+        term_score.cosine_weight = term_score.wf
+        # print("cosine_weight %f" %curr_term.cosine_weight)
         term_score.score = term_score.cosine_weight * term_score.weight_in_term
+        # print("term score %f" %curr_term.score)
         doc_score += term_score.score
 
     return doc_score
+
+def is_book(path):
+    file = open(path)
+    type = file.readline()
+    if type.strip() == "book":
+        file.close()
+        return True
+    else:
+        file.close()
+        return False
 
 # count document frequency histogram for every term
 def count_df_histogram(DATA_DIR):
     df_histogram = {}
     # Iterate over file in data directory
     for f in listdir(DATA_DIR):
+        if not(is_book(DATA_DIR+f)):
+            continue
         # locate abstract string
         abstract_str = extract_from_file("abstract", DATA_DIR+f)[8:]
         for item in abstract_str.split():
@@ -214,8 +242,10 @@ def run_search(searcher, analyzer, ireader, df_hist):
         print ("Searching for:", command)
         query = QueryParser("abstract", analyzer).parse(command)
         # Searching returns hits in the form of a TopDocs object, it is list of documents
-        scoreDocs = searcher.search(query, 10).scoreDocs    # 10 means : 10 best results
+        scoreDocs = searcher.search(query, 100).scoreDocs    # 10 means : 10 results
         print ("%s total matching documents." % len(scoreDocs))
+
+        doc_scores_list = []
 
         for scoreDoc in scoreDocs:
             # Note that the TopDocs object contains only references to the underlying documents.
@@ -225,9 +255,16 @@ def run_search(searcher, analyzer, ireader, df_hist):
             # retrieve individual field values.
             doc = searcher.doc(scoreDoc.doc)
             # here you can only print doc and it is fine
-            doc_score = evalute_doc(command, df_hist, len(scoreDocs), doc.get("file_name"))
-            print(doc.get("file_name"))
-            print(f"score: {doc_score}\n")
+            doc_score = evalute_doc(command, df_hist, 1031, doc.get("file_name"))
+            # print(f'{doc.get("title")} by {doc.get("author")}')
+            # print(f"score: {doc_score}\n")
+            doc_tuple = (f'{doc.get("title")} by {doc.get("author")}', doc_score)
+            doc_scores_list.append(doc_tuple)
+
+        doc_scores_list.sort(key=lambda x:x[1], reverse=True)
+        for item in doc_scores_list:
+            print(f'{item[0]} ---> {item[1]}')
+
 
 # Create a searcher for the above defined RAMDirectory
 searcher = IndexSearcher(DirectoryReader.open(directory))

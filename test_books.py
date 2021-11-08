@@ -10,6 +10,7 @@ for f in listdir(DATA_DIR):
     print(filee.readline())
     print(filee.readline())
     print(filee.readline())
+    print(filee.readline())
 
     print("\n---------------------\n")
 
