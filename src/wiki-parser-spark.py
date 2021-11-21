@@ -16,7 +16,7 @@ def extract_textTag(x):
         x[1] = regex_text.group(1)
     return x
 
-def clear_content(content_str):
+def clear_html(content_str):
     # clear html tags
     clearHTML_regex = re.compile("<.*?>")
     content_str = re.sub(clearHTML_regex, '', content_str)
@@ -42,7 +42,7 @@ def extract_importantText(x):
 
 # clear useless characters
 def delete_useless(x):
-    x[1] = clear_content(str(x[1]))
+    x[1] = clear_html(str(x[1]))
     return x
 
 # delete all "{{cite blocks"
@@ -121,17 +121,43 @@ def extract_book_info(x):
         x[0] = '[writer]' + str(x[0])
     return x
 
+def remove_stopwords(wordlist, stopwords_set):
+    # iterate list from end so you can delete elements
+    for word in reversed(wordlist):
+        if (word+'\n').lower() in stopwords_set:
+            wordlist.remove(word)
+    return wordlist
+
+def leave_literals(str):
+    useless_chars = ['[', ']', '#', ',', '(', ')', ';', '.', ':', '"', '\'']
+    for item in useless_chars:
+        str = str.replace(item, "")
+    return str
+
+def clean_content(x, stopwords):
+    if x[0].startswith('[book]'):
+        book_content_regex = re.search("\}\}(.*?)={2,3}", x[1])
+        if book_content_regex:
+            book_content = book_content_regex.group(1)
+            book_content = leave_literals(book_content)
+            book_content = book_content.split()
+            book_content = remove_stopwords(book_content, stopwords)
+            x.append(book_content)
+    return x
+
 # Create Spark session
 spark = SparkSession.builder \
     .appName(appName) \
     .master(master) \
     .getOrCreate()
 
+# define XML schema
 schema = StructType([
     StructField('title', StringType(), True),
     StructField('revision', StringType(), True)
 ])
 
+# parse XML
 df = spark.read.format('com.databricks.spark.xml') \
     .option('rowTag','page').load('file:///home/enwiki-latest-pages-articles27.xml', schema=schema)
 
@@ -160,8 +186,17 @@ xmlRdd = xmlRdd.filter(lambda x: is_bookORwriter(x))
 # clear useless {{...}} blocks
 xmlRdd = xmlRdd.map(lambda x: delete_citeUrl(x))
 
-# extract book(author, ...) info from text
+# extract book(author, genre, publ_year, number of pages ...) info from text
 xmlRdd = xmlRdd.map(lambda x: extract_book_info(x))
+
+# load stopwords to set
+stopwords_set = set()
+stopwords_file = open("stopwords.txt", mode="r", encoding="utf-8")
+for line in stopwords_file:
+    stopwords_set.add(line)
+
+# remove stopwords & useless chars from book content
+xmlRdd = xmlRdd.map(lambda x: clean_content(x, stopwords_set))
 
 resultRdd = xmlRdd.collect()
 
@@ -175,6 +210,7 @@ for rRdd in resultRdd:
         output.write(f"Genre: {rRdd[3]}\n")
         output.write(f"Publish year: {rRdd[4]}\n")
         output.write(f"Pages: {rRdd[5]}\n")
+        output.write(f"Words: {rRdd[6]}\n")
         output.write("\n----------\n")
     elif rRdd[0].startswith("[writer]"):
         output.write(f"\nTitle: {rRdd[0]}\n")
