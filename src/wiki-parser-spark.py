@@ -82,7 +82,7 @@ def extract_from_infobox(infobox, infobox_item):
     return 'none'
 
 # extract book info
-def extract_book_info(x):
+def extract_BookWriter_info(x):
     # if x is about book:
     if re.search("\{\{Infobox book", str(x[1])):
         x[0] = '[book]' + str(x[0])
@@ -97,7 +97,7 @@ def extract_book_info(x):
         if author == 'none':
             # to catch at least 1st
             author = extract_from_infobox(str(x[1]), "editors")
-        x.append(author)
+        x.append(author.strip('\n'))
 
         # 2. extract genre from Infobox:
         genre = extract_from_infobox(str(x[1]), "genre")
@@ -118,7 +118,13 @@ def extract_book_info(x):
         num_pages = extract_from_infobox(str(x[1]), "pages")
         x.append(num_pages)
     elif re.search("\{\{Infobox writer", str(x[1])):
-        x[0] = '[writer]' + str(x[0])
+        x[0] = '[writer]' + str(x[0])           # .decode('utf-8') to remove b''
+        nationality = extract_from_infobox(str(x[1]), "birth_place")
+        if not(nationality == 'none'):
+            country =  nationality.split(',').pop()
+            x.append(country)
+            return x
+        x.append(nationality)
     return x
 
 def remove_stopwords(wordlist, stopwords_set):
@@ -143,7 +149,19 @@ def clean_content(x, stopwords):
             book_content = book_content.split()
             book_content = remove_stopwords(book_content, stopwords)
             x.append(book_content)
+        else:
+            x.append('none')
     return x
+
+def filter_books(x):
+    if re.search("\{\{Infobox book", str(x[1])):
+        return True
+    return False
+
+def filter_writers(x):
+    if re.search("\{\{Infobox writer", str(x[1])):
+        return True
+    return False
 
 # Create Spark session
 spark = SparkSession.builder \
@@ -159,7 +177,7 @@ schema = StructType([
 
 # parse XML
 df = spark.read.format('com.databricks.spark.xml') \
-    .option('rowTag','page').load('file:///home/enwiki-latest-pages-articles27.xml', schema=schema)
+    .option('rowTag','page').load('file:///home/enwiki-latest-pages-articles.xml', schema=schema)
 
 # convert DataFrame to string RDD
 xmlRdd = df.rdd.map(list)
@@ -187,7 +205,22 @@ xmlRdd = xmlRdd.filter(lambda x: is_bookORwriter(x))
 xmlRdd = xmlRdd.map(lambda x: delete_citeUrl(x))
 
 # extract book(author, genre, publ_year, number of pages ...) info from text
-xmlRdd = xmlRdd.map(lambda x: extract_book_info(x))
+xmlRdd = xmlRdd.map(lambda x: extract_BookWriter_info(x))
+
+# filter book articles
+bookRdd = xmlRdd.filter(lambda x: filter_books(x))
+
+# filter writer articles
+writerRdd = xmlRdd.filter(lambda x: filter_writers(x))
+
+# create key/value rdd -> key = author_name / value -> article
+bookRdd = bookRdd.map(lambda x: (str(x[2]).strip()[:-2], x))
+
+# create key/value rdd -> key = author_name / value -> author's nationality
+writerRdd = writerRdd.map(lambda x: (x[0].replace('[writer]','')[2:-1], x[2]))
+
+# join books with writers by name
+finalRdd = bookRdd.leftOuterJoin(writerRdd)
 
 # load stopwords to set
 stopwords_set = set()
@@ -196,22 +229,17 @@ for line in stopwords_file:
     stopwords_set.add(line)
 
 # remove stopwords & useless chars from book content
-xmlRdd = xmlRdd.map(lambda x: clean_content(x, stopwords_set))
+# finalRdd = finalRdd.map(lambda x: clean_content(x, stopwords_set))
 
-resultRdd = xmlRdd.collect()
+resultRdd = finalRdd.collect()
 
 output = open("output.txt", "w")
-
 for rRdd in resultRdd:
-    if rRdd[0].startswith("[book]"):
-        output.write(f"\nTitle: {rRdd[0]}\n")
-        output.write(f"\nContent: {rRdd[1]}\n")
-        output.write(f"Author: {rRdd[2]}\n")
-        output.write(f"Genre: {rRdd[3]}\n")
-        output.write(f"Publish year: {rRdd[4]}\n")
-        output.write(f"Pages: {rRdd[5]}\n")
-        output.write(f"Words: {rRdd[6]}\n")
-        output.write("\n----------\n")
-    elif rRdd[0].startswith("[writer]"):
-        output.write(f"\nTitle: {rRdd[0]}\n")
-        output.write(f"\nContent: {rRdd[1]}\n")
+    output.write(f"title\t{rRdd[1][0][0].replace('[book]', '')[2:-1]}\n")
+    output.write(f"author\t{str(rRdd[1][0][2])[:-2]}\n")
+    output.write(f"genre\t{rRdd[1][0][3]}\n")
+    output.write(f"pub_year\t{rRdd[1][0][4]}\n")
+    output.write(f"pages\t{rRdd[1][0][5]}\n")
+    output.write(f"abstract\t{rRdd[1][0][1]}\n")
+    output.write(f"nationality\t{rRdd[1][1]}\n")
+    output.write("$\n")
