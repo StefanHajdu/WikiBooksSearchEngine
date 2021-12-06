@@ -20,8 +20,8 @@ from org.apache.lucene.index import DirectoryReader
 from org.apache.lucene.queryparser.classic import QueryParser
 
 
-DATA_DFILE = "to_index.txt"
-INDEX_DIR = "/home/stephenx/Dokumenty/python/Wiki_books_search/index/"
+DATA_DFILE = "data_to_index.txt"
+INDEX_DIR = "built_index"
 
 def extract_from_file(field, file_name):
     file = open(file_name)
@@ -42,37 +42,31 @@ def create_document(book_doc):
     field_type_2.setStored(True)
     field_type_2.setStoreTermVectors(True)
     field_type_2.setTokenized(True)
-    field_type_2.setIndexOptions(IndexOptions.DOCS_AND_FREQS)
-
-    # print(book_doc)
+    field_type_2.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS)
 
     doc = Document()
     # add the title field
-    doc.add(Field("title", book_doc.title, field_type_2))
+    doc.add(Field("t", book_doc.title, field_type_2))
     # add the author field
-    doc.add(Field("author", book_doc.author, field_type_2))
+    doc.add(Field("a", book_doc.author, field_type_2))
     # add the genre field
-    doc.add(Field("genre", book_doc.genre, field_type_2))
+    doc.add(Field("g", book_doc.genre, field_type_2))
     # add the country field
-    doc.add(Field("country", book_doc.country, field_type_2))
+    doc.add(Field("c", book_doc.country, field_type_2))
     # add the key-words field
-    doc.add(Field("words", book_doc.key_words, field_type_2))
+    doc.add(Field("kw", book_doc.key_words, field_type_2))
 
     return doc
 
 def query(command, arg):
     command = command.lower()
-    aq_regex = re.search(f'(;{arg}.*?;)', command)
+    aq_regex = re.search(f'({arg}:.*?:)', command)
     if aq_regex:
-        aq = aq_regex.group(1)[3:-2]
+        aq = aq_regex.group(1)[:-1]
     else:
-        aq_regex = re.search(f'(;{arg}.*)', command)
-        aq = aq_regex.group(1)[3:]
-    if arg == 'kw':
-        return aq
-    if ' & ' in aq:
-        aq.replace(' & ', '')
-    return aq.replace(' ', 'X')
+        aq_regex = re.search(f'({arg}:.*)', command)
+        aq = aq_regex.group(1)
+    return aq
 
 def search_by_field(command, searcher, analyzer, ireader, field):
     field_set = set()
@@ -89,11 +83,11 @@ def search_by_field(command, searcher, analyzer, ireader, field):
         # retrieve individual field values.
         doc = searcher.doc(scoreDoc.doc)
         book = BookDoc(
-                    doc.get("title"),
-                    doc.get("author"),
-                    doc.get("genre"),
-                    doc.get("county"),
-                    doc.get("words")
+                    doc.get("t"),
+                    doc.get("a"),
+                    doc.get("g"),
+                    doc.get("c"),
+                    doc.get("kw")
                 )
         field_set.add(book)
     return field_set
@@ -143,17 +137,17 @@ def run_search(searcher, analyzer, ireader):
             return
         print ("Searching for:", command)
 
-        if ';a' in command:
-            author_set = search_by_field(query(command, 'a'), searcher, analyzer, ireader, 'author')
+        if 'a:' in command:
+            author_set = search_by_field(query(command, 'a'), searcher, analyzer, ireader, 'a')
             list_of_sets.append(author_set)
-        if ';g' in command:
-            genre_set = search_by_field(query(command, 'g'), searcher, analyzer, ireader, 'genre')
+        if 'g:' in command:
+            genre_set = search_by_field(query(command, 'g'), searcher, analyzer, ireader, 'g')
             list_of_sets.append(genre_set)
-        if ';c' in command:
-            country_set = search_by_field(query(command, 'c'), searcher, analyzer, ireader, 'country')
+        if 'c:' in command:
+            country_set = search_by_field(query(command, 'c'), searcher, analyzer, ireader, 'c')
             list_of_sets.append(country_set)
-        if ';kw' in command:
-            words_set = search_by_field(query(command, 'kw'), searcher, analyzer, ireader, 'words')
+        if 'kw:' in command:
+            words_set = search_by_field(query(command, 'kw'), searcher, analyzer, ireader, 'w')
             list_of_sets.append(words_set)
 
         #print(list_of_sets)
@@ -165,25 +159,23 @@ def run_search(searcher, analyzer, ireader):
             book_list = evaluate_result(final_set, command)
             for item in book_list:
                 print("\n")
-                print_nice(item)
+                print(item)
             print("\n")
 
         final_set.clear()
         list_of_sets.clear()
 
 def extract_author(line):
-    author = line.replace('author\t', '').lower()
+    author = line.replace('author\t', '')
     if len(author) == 0 or author == '\n':
         return 'unknown'
     if '(' in author:
         author = re.sub(r'\(.*', '', author)
     if ' and ' in author:
-        author = author.replace(' and ', '&')
+        author = author.replace(' and ', ' ')
     if '[[' in author:
-        author = author.replace('[[', '&')[2:]
-        author = author.replace(']]', '')
-        return author.replace(' ', 'X').replace('&', ' ').lower()[:-1]
-    author = author.replace(' ', 'X')
+        author = author.replace('[[', ' ')
+        author = author.replace(']]', ' ')
     return author[1:-1]
 
 def extract_genre(line):
@@ -193,23 +185,21 @@ def extract_genre(line):
     genre = genre.strip()
     if genre == 'none' or genre == '' or genre == '\n':
         return 'unknown'
-    genre = genre.replace(']],', '&')
-    genre = genre.replace(', [[', '&')
-    genre = genre.replace(', ', '&')
-    genre = genre.replace('[[', '&')[1:]
-    genre = genre.replace(']]', '')
+    genre = genre.replace(']],', ' ')
+    genre = genre.replace(', [[', ' ')
+    genre = genre.replace(', ', ' ')
+    genre = genre.replace('[[', ' ')
+    genre = genre.replace(']]', ' ')
     genre = genre.replace(')', '')
     genre = genre.replace('(', '')
 
-    genre = genre.replace(' ', 'X')
-    return genre.replace('&', ' ')
+    return genre
 
 def extract_country(line):
     country = line.replace('nationality\t', '').lower()
     country = country.replace("\\'", '')
     country = country.replace("\\n", '')
     country = country.strip()
-
     if country == 'none' or country == '' or country == '\n':
         return 'unknown'
     country = country.replace('[[', '')
@@ -217,11 +207,10 @@ def extract_country(line):
     country = country.replace(')', '')
     country = country.replace('(', '')
     country = country.replace('.', '')
-
     return country
 
 stopwords_set = set()
-stopwords_file = open("stopwords.txt", "r")
+stopwords_file = open("gazeteers/stopwords.txt", "r")
 for line in stopwords_file:
     stopwords_set.add(line)
 
@@ -306,7 +295,6 @@ if args.index:
     for line in book_file:
         if line.startswith('title'):
             title = line.replace('title\t', '')
-            title = title.replace(' ', ',').lower()[:-1]
         if line.startswith('author'):
             author = extract_author(line)
         if line.startswith('genre'):
