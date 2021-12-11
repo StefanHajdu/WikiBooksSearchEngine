@@ -62,7 +62,7 @@ def query(command, arg):
     command = command.lower()
     aq_regex = re.search(f'({arg}:.*?:)', command)
     if aq_regex:
-        aq = aq_regex.group(1)[:-1]
+        aq = aq_regex.group(1)[:-2]
     else:
         aq_regex = re.search(f'({arg}:.*)', command)
         aq = aq_regex.group(1)
@@ -70,11 +70,11 @@ def query(command, arg):
 
 def search_by_field(command, searcher, analyzer, ireader, field):
     field_set = set()
-    print ("-> Searching for: ", command)
+    print ("      -> Searching for: ", command)
     query = QueryParser(field, analyzer).parse(command)
     # Searching returns hits in the form of a TopDocs object
     scoreDocs = searcher.search(query, 100000).scoreDocs    # 10 means : 10 best results
-    print ("-> %s total matching documents." % len(scoreDocs))
+    print ("      -> %s total matching documents." % len(scoreDocs))
     for scoreDoc in scoreDocs:
         # Note that the TopDocs object contains only references to the underlying documents.
         # In other words, instead of being loaded immediately upon search, matches are loaded
@@ -92,12 +92,12 @@ def search_by_field(command, searcher, analyzer, ireader, field):
         field_set.add(book)
     return field_set
 
-def print_nice(book):
-    title = book.title
-    title = title.replace(',', ' ').title()
-    author = book.author
-    author = author.replace('X', ' ').title()
-    print(f"FOUND: \"{title}\" by {author}")
+# def print_nice(book):
+#     title = book.title
+#     title = title.replace(',', ' ').title()
+#     author = book.author
+#     author = author.replace('X', ' ').title()
+#     print(f"FOUND: \"{title}\" by {author}")
 
 def count_hist(book):
     freq_histogram = {}
@@ -135,8 +135,12 @@ def run_search(searcher, analyzer, ireader):
         command = str(input("Query:"))
         if command == '':
             return
-        print ("Searching for:", command)
+        print("Query log:")
+        print ("    Searching for:", command)
 
+        if 't:' in command:
+            title_set = search_by_field(query(command, 't'), searcher, analyzer, ireader, 't')
+            list_of_sets.append(title_set)
         if 'a:' in command:
             author_set = search_by_field(query(command, 'a'), searcher, analyzer, ireader, 'a')
             list_of_sets.append(author_set)
@@ -157,10 +161,12 @@ def run_search(searcher, analyzer, ireader):
             print("-> No results found")
         else:
             book_list = evaluate_result(final_set, command)
+            print("\nFound results:")
             for item in book_list:
-                print("\n")
                 print(item)
-            print("\n")
+                print("-----------------------------------------------")
+            print("\nQuery search done, enter next one.\n")
+
 
         final_set.clear()
         list_of_sets.clear()
@@ -261,16 +267,17 @@ class BookDoc:
         self.key_words = key_words
 
     def __str__(self):
-        return f"SCORE = {self.score}; TITLE = {self.title}; AUTHOR = {self.author}; GENRE = {self.genre}; COUNTRY = {self.country}; KEY-WORDS = {self.key_words}\n"
+        return f"\nTITLE = {self.title[:-1]}\nAUTHOR = {self.author}\nGENRE = {self.genre}\nCOUNTRY = {self.country}\n"
 
     def __eq__(self, other):
         return (
             self.__class__ == other.__class__ and
-            self.title == other.title
+            self.title == other.title and
+            self.author == other.author
         )
 
     def __hash__(self):
-        return hash(self.title)
+        return hash(self.title+self.author)
 
 if args.index:
     ascii_banner = pyfiglet.figlet_format("Index")
