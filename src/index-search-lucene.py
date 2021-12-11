@@ -62,7 +62,10 @@ def query(command, arg):
     command = command.lower()
     aq_regex = re.search(f'({arg}:.*?:)', command)
     if aq_regex:
-        aq = aq_regex.group(1)[:-2]
+        if arg == "kw":
+            aq = aq_regex.group(1)[:-3]
+        else:
+            aq = aq_regex.group(1)[:-2]
     else:
         aq_regex = re.search(f'({arg}:.*)', command)
         aq = aq_regex.group(1)
@@ -151,8 +154,17 @@ def run_search(searcher, analyzer, ireader):
             country_set = search_by_field(query(command, 'c'), searcher, analyzer, ireader, 'c')
             list_of_sets.append(country_set)
         if 'kw:' in command:
-            words_set = search_by_field(query(command, 'kw'), searcher, analyzer, ireader, 'w')
-            list_of_sets.append(words_set)
+            if command.count("kw: ") > 1:
+                kw_commands = command.split("kw: ")
+                for kw_command in kw_commands:
+                    if len(kw_command) == 0:
+                        continue
+                    command = "kw: "+kw_command.strip()
+                    words_set = search_by_field(query(command, 'kw'), searcher, analyzer, ireader, 'kw')
+                    list_of_sets.append(words_set)
+            else:
+                words_set = search_by_field(query(command, 'kw'), searcher, analyzer, ireader, 'kw')
+                list_of_sets.append(words_set)
 
         #print(list_of_sets)
 
