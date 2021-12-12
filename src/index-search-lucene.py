@@ -63,12 +63,12 @@ def query(command, arg):
     aq_regex = re.search(f'({arg}:.*?:)', command)
     if aq_regex:
         if arg == "kw":
-            aq = aq_regex.group(1)[:-3]
+            aq = aq_regex.group(1)[:-3].replace(' k', '')
         else:
-            aq = aq_regex.group(1)[:-2]
+            aq = aq_regex.group(1)[:-2].replace(' k', '')
     else:
         aq_regex = re.search(f'({arg}:.*)', command)
-        aq = aq_regex.group(1)
+        aq = aq_regex.group(1).replace(' k', '')
     return aq
 
 def search_by_field(command, searcher, analyzer, ireader, field):
@@ -173,11 +173,12 @@ def run_search(searcher, analyzer, ireader):
             print("-> No results found")
         else:
             book_list = evaluate_result(final_set, command)
-            print("\nFound results:")
+
             for item in book_list:
                 print(item)
-                print("-----------------------------------------------")
+                print("-------------------------------------------")
             print("\nQuery search done, enter next one.\n")
+            print(f"\nFound results: {len(book_list)}")
 
 
         final_set.clear()
